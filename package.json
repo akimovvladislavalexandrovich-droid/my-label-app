@@ -7,8 +7,8 @@
   "author": "Your Name",
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac"
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --win --publish never"
   },
   "dependencies": {
     "xlsx": "^0.18.5"

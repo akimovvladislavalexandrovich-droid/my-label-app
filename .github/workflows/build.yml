@@ -1,55 +1,52 @@
 name: Build Electron App
 
-# Запускать сборку при каждом пуше в ветку main (или master)
 on:
   push:
     branches: [ "main", "master" ]
 
 jobs:
   build:
-    # Запускаем матрицу: одна сборка на Windows, вторая на Mac
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [windows-latest, macos-latest]
 
     steps:
-    # 1. Скачиваем ваш код на сервер GitHub
     - name: Check out Git repository
       uses: actions/checkout@v4
 
-    # 2. Устанавливаем Node.js
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 24
 
-    # 3. Устанавливаем зависимости из package.json
     - name: Install Dependencies
       run: npm install
 
-    # 4. Собираем версию для Mac (если сервер на Mac)
-    - name: Build Mac version
-      if: matrix.os == 'macos-latest'
-      run: npm run build:mac
-
-    # 5. Собираем версию для Windows (если сервер на Windows)
+    # Сборка для Windows
     - name: Build Windows version
       if: matrix.os == 'windows-latest'
       run: npm run build:win
 
-    # 6. Загружаем готовый .exe файл в результаты GitHub Actions
+    # Сборка для Mac (делаем Universal, чтобы работало везде)
+    - name: Build Mac version
+      if: matrix.os == 'macos-latest'
+      run: npx electron-builder --mac --universal --publish never
+
+    # Загрузка Windows (ищем любые .exe в папке dist)
     - name: Upload Windows Artifact
       if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: Quack-quack-Windows
         path: dist/*.exe
+        if-no-files-found: error
 
-    # 7. Загружаем готовый .dmg файл в результаты GitHub Actions
+    # Загрузка Mac (ищем любые .dmg в папке dist)
     - name: Upload Mac Artifact
       if: matrix.os == 'macos-latest'
       uses: actions/upload-artifact@v4
       with:
         name: Quack-quack-Mac
         path: dist/*.dmg
+        if-no-files-found: error

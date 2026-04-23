@@ -14,7 +14,7 @@ function createWindow() {
     }
   });
   
-  // 3) Отключаем системное меню (File, Edit, View, Window)
+  // Отключаем системное меню для всех платформ (включая macOS)
   mainWindow.setMenu(null); 
   
   mainWindow.loadFile('index.html');
@@ -32,7 +32,6 @@ ipcMain.on('print-to-pdf', async (event, { svgs, widthMm, heightMm }) => {
         
         if (canceled || !filePath) return; 
 
-        // 2) Сообщаем интерфейсу, что началось формирование и сохранение файла
         event.sender.send('show-saving-modal');
 
         const workerWin = new BrowserWindow({ show: false });
@@ -69,12 +68,10 @@ ipcMain.on('print-to-pdf', async (event, { svgs, widthMm, heightMm }) => {
         workerWin.destroy();
         if (fs.existsSync(tempHtmlPath)) fs.unlinkSync(tempHtmlPath);
 
-        // Убираем окно загрузки после успешного сохранения
         event.sender.send('hide-saving-modal');
 
         shell.openPath(filePath);
     } catch (error) { 
-        // Убираем окно загрузки, если произошла ошибка
         event.sender.send('hide-saving-modal');
         dialog.showErrorBox("Ошибка печати", error.message);
         if (tempHtmlPath && fs.existsSync(tempHtmlPath)) fs.unlinkSync(tempHtmlPath);
@@ -92,4 +89,17 @@ ipcMain.handle('load-template-dialog', async () => {
 });
 
 app.whenReady().then(createWindow);
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+
+// Нативное поведение macOS: не выходить из приложения при закрытии всех окон
+app.on('window-all-closed', () => { 
+    if (process.platform !== 'darwin') {
+        app.quit(); 
+    }
+});
+
+// Возрождение окна при клике на иконку в Dock (для Mac)
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+    }
+});

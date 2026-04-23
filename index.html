@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';">
+    <title>Quack-quack (Label)</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; background: #f0f0f0; overflow: hidden; }
+        .toolbar { background: #1c5c94; color: white; padding: 10px; display: flex; gap: 15px; align-items: center; justify-content: space-between; }
+        .main { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 250px; background: #fff; border-right: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+        .canvas-container-outer { flex: 1; background: #808080; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .canvas-shadow { box-shadow: 0 0 20px rgba(0,0,0,0.5); transform-origin: center center; }
+        .properties { width: 260px; background: #fff; border-left: 1px solid #ccc; padding: 10px; overflow-y: auto; }
+        
+        button { cursor: pointer; padding: 6px 10px; border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px; font-size: 13px; }
+        button:hover { background: #e0f0ff; }
+        label { font-size: 11px; font-weight: bold; display: block; margin-top: 10px; color: #555; text-transform: uppercase; }
+        input, select { width: 100%; box-sizing: border-box; padding: 6px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; font-size: 13px; }
+        .row { display: flex; gap: 5px; align-items: center; }
+        
+        .align-btn { flex: 1; padding: 4px; text-align: center; font-size: 16px; background: #eee; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; }
+        .align-btn:hover { background: #d0e5f5; }
+        
+        .btn-danger { background: #e74c3c; color: white; border: none; margin-top: 15px; width: 100%; }
+        .btn-danger:hover { background: #c0392b; }
+
+        #printModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .modal-content h3 { margin-top: 0; color: #1c5c94; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <div class="row">
+            <span style="font-size: 12px;">Шаблон:</span>
+            <select id="tplSelector" style="width: 140px; margin: 0; padding: 4px;"></select>
+            <input type="text" id="tplName" placeholder="Имя шаблона" style="width: 140px; margin: 0; padding: 4px;">
+            <button id="saveLocalBtn" style="background: #3498db; color: white; border: none; padding: 5px 10px;" title="Сохранить">💾</button>
+            <button id="delLocalBtn" style="background: #e74c3c; color: white; border: none; padding: 5px 10px;" title="Удалить выбранный шаблон">🗑</button>
+            <button id="newLocalBtn" style="padding: 5px 10px;" title="Новый">📄</button>
+        </div>
+        <div class="row">
+            <button id="exportTplBtn">📤 Экспорт</button>
+            <button id="importTplBtn">📥 Импорт</button>
+            <button id="printBtn" style="background: #27ae60; color: white; border: none; font-weight: bold; margin-left: 10px; padding: 6px 20px;">🖨 ПЕЧАТЬ В PDF</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <label>Объекты</label>
+            <button id="addTextBtn">📝 Текст (Блок)</button>
+            <button id="addBarcodeBtn">📊 Штрихкод (128)</button>
+            <button id="addDataMatrixBtn">🟦 DataMatrix</button>
+            <button id="addSvgBtn">🖼 SVG Графика</button>
+            <input type="file" id="svgFileInput" accept=".svg" style="display: none;">
+            
+            <label>Размер этикетки (мм)</label>
+            <div class="row">
+                <input type="number" id="labelWidth" value="120" title="Ширина">
+                <input type="number" id="labelHeight" value="70" title="Высота">
+            </div>
+
+            <label>1. Данные (Google Sheets)</label>
+            <input type="text" id="sheetUrl" placeholder="Вставьте ссылку...">
+            <button id="fetchSheetsBtn">Найти листы</button>
+
+            <div id="sheetSelectionDiv" style="display: none;">
+                <label>2. Лист</label>
+                <select id="sheetSelector"></select>
+                <button id="loadFieldsBtn" style="margin-top: 5px; width: 100%;">Прочитать поля</button>
+            </div>
+            <div id="dataFieldsList" style="font-size: 10px; margin-top: 5px; color: #1c5c94;"></div>
+        </div>
+
+        <div class="canvas-container-outer" id="canvasWrapper">
+            <div class="canvas-shadow" id="canvasShadow">
+                <canvas id="labelCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="properties">
+            
+            <div id="alignPanel" style="display:none; margin-bottom: 15px;">
+                <label>Позиция на холсте</label>
+                <div class="row" style="margin-bottom: 5px;">
+                    <div class="align-btn" id="alignCanvasLeft" title="По левому краю">⬅️</div>
+                    <div class="align-btn" id="alignCanvasCenterH" title="По центру (гор)">↔️</div>
+                    <div class="align-btn" id="alignCanvasRight" title="По правому краю">➡️</div>
+                </div>
+                <div class="row">
+                    <div class="align-btn" id="alignCanvasTop" title="По верхнему краю">⬆️</div>
+                    <div class="align-btn" id="alignCanvasCenterV" title="По центру (верт)">↕️</div>
+                    <div class="align-btn" id="alignCanvasBottom" title="По нижнему краю">⬇️</div>
+                </div>
+            </div>
+
+            <div id="multiAlignPanel" style="display:none; margin-bottom: 15px; border: 1px dashed #3498db; padding: 5px; background: #f0f8ff;">
+                <label style="color: #3498db; margin-top: 0;">Выравнивание элементов</label>
+                <div class="row">
+                    <div class="align-btn" id="alignMultiLeft" title="По левой границе">⬅️ Лев</div>
+                    <div class="align-btn" id="alignMultiCenter" title="По центру">↔️ Центр</div>
+                    <div class="align-btn" id="alignMultiRight" title="По правой границе">➡️ Прав</div>
+                </div>
+            </div>
+
+            <label>Свойства элемента</label>
+            <p id="noSelection" style="font-size: 12px; color: #888;">Выберите объект</p>
+            
+            <div id="propControls" style="display:none;">
+                <div id="dataSourceContainer">
+                    <label>Источник данных</label>
+                    <select id="dataType">
+                        <option value="static">Текст (вручную)</option>
+                        <option value="dynamic">Из таблицы (авто)</option>
+                    </select>
+                    
+                    <div id="dynamicFieldDiv" style="display:none;">
+                        <label>Название колонки</label>
+                        <input type="text" id="fieldSelector" placeholder="Например: Артикул">
+                    </div>
+                    
+                    <div id="staticTextDiv">
+                        <label>Значение / Текст</label>
+                        <input type="text" id="objText">
+                    </div>
+                </div>
+
+                <div id="fontSettings">
+                    <div id="textOnlySettings" style="display:none;">
+                        <label>Желаемый размер шрифта (pt)</label>
+                        <input type="number" id="fontSizeInput" value="20">
+
+                        <label>Шрифт и толщина</label>
+                        <div class="row">
+                            <select id="fontFamilySelect" style="flex: 2;">
+                                <option value="Arial">Arial</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                                <option value="Courier New">Courier New</option>
+                                <option value="Tahoma">Tahoma</option>
+                            </select>
+                            <select id="fontWeightSelect" style="flex: 1;">
+                                <option value="normal">Обычный</option>
+                                <option value="bold">Жирный</option>
+                            </select>
+                        </div>
+
+                        <label>Выравнивание текста</label>
+                        <select id="textAlignText">
+                            <option value="left">По левому краю</option>
+                            <option value="center">По центру</option>
+                            <option value="right">По правому краю</option>
+                        </select>
+                        <label>Количество строк</label>
+                        <select id="maxLinesSelect">
+                            <option value="1">1 строка</option>
+                            <option value="2">2 строки</option>
+                        </select>
+                        <label>Инверсия цвета</label>
+                        <select id="invertTextSelect">
+                            <option value="false">Черный текст</option>
+                            <option value="true">Белый текст (черный фон)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="codeTextSettings" style="display:none;">
+                    <hr style="margin-top:15px; border:0; border-top:1px solid #eee;">
+                    <label>Текст под кодом</label>
+                    <select id="showCodeText">
+                        <option value="true">Показывать</option>
+                        <option value="false">Скрыть</option>
+                    </select>
+                    <div id="codeTextSubSettings">
+                        <label>Отступ от кода (px)</label>
+                        <input type="number" id="textOffset" value="1">
+                        <label id="alignLabel">Выравнивание</label>
+                        <select id="textAlignCode">
+                            <option value="center">По центру</option>
+                            <option value="left">Слева</option>
+                            <option value="right">Справа</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button id="deleteObjBtn" class="btn-danger">🗑 Удалить элемент</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="printModal">
+        <div class="modal-content">
+            <h3>Подготовка к печати</h3>
+            <p id="printModalStatus" style="font-size: 14px; color: #333; margin-bottom: 15px;">Загружаю данные из таблицы...</p>
+            <div id="printModalControls" style="display: none;">
+                <label style="margin-top:0;">Выберите лист с данными:</label>
+                <select id="printSheetSelector" style="width: 100%; margin-bottom: 20px; padding: 8px;"></select>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="cancelPrintBtn" style="background: #e74c3c; color: white; border: none;">Отмена</button>
+                <button id="confirmPrintBtn" style="background: #27ae60; color: white; border: none; display: none;">Напечатать</button>
+            </div>
+        </div>
+    </div>
+
+    <script>if (typeof module === 'object') {window.module = module; module = undefined;}</script>
+    <script src="./libs/fabric.min.js"></script>
+    <script src="./libs/bwip-js.min.js"></script>
+    <script>if (window.module) module = window.module;</script>
+    <script src="renderer.js"></script>
+</body>
+</html>

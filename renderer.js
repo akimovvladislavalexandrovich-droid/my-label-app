@@ -1,6 +1,5 @@
-const { ipcRenderer } = require('electron');
-const XLSX = require('xlsx');
-const fs = require('fs');
+// В веб-версии (PWA) мы не используем require('electron') и fs.
+// Библиотеки (fabric, bwipjs, XLSX, localforage) загружаются глобально из index.html
 
 window.addEventListener('DOMContentLoaded', () => {
     fabric.Text.prototype.textBaseline = 'alphabetic';
@@ -40,20 +39,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (savedUrl) document.getElementById('sheetUrl').value = savedUrl;
 
     const canvas = new fabric.Canvas('labelCanvas', { backgroundColor: '#ffffff', preserveObjectStacking: true });
-    const showAlert = (msg) => ipcRenderer.invoke('show-alert', msg);
-
-    ipcRenderer.on('show-saving-modal', () => {
-        const modal = document.getElementById('printModal');
-        modal.style.display = 'flex';
-        document.getElementById('printModalStatus').innerText = "Сохраняю PDF файл...";
-        document.getElementById('printModalControls').style.display = 'none';
-        document.getElementById('confirmPrintBtn').style.display = 'none';
-        document.getElementById('cancelPrintBtn').style.display = 'none';
-    });
-
-    ipcRenderer.on('hide-saving-modal', () => {
-        document.getElementById('printModal').style.display = 'none';
-    });
+    
+    // В вебе используем стандартный alert вместо диалогов Electron
+    const showAlert = (msg) => alert(msg);
 
     const updateCanvasSize = () => {
         const wMm = parseFloat(document.getElementById('labelWidth').value) || 120;
@@ -95,7 +83,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- БЕЗОШИБОЧНАЯ ГЕНЕРАЦИЯ ДЛЯ ЧЕСТНОГО ЗНАКА ---
+    // БЕЗОШИБОЧНАЯ ГЕНЕРАЦИЯ ДЛЯ ЧЕСТНОГО ЗНАКА
     const updateCode = (obj, callback) => {
         let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
         try {
@@ -113,24 +101,12 @@ window.addEventListener('DOMContentLoaded', () => {
             };
 
             if (obj.customType === 'datamatrix') {
-                // Включаем парсинг только для FNC-команд, никаких "умных" скобок
                 bwipOpts.parsefnc = true; 
-                
                 let safeVal = String(val);
-                
-                // 1. Очищаем от случайных нуль-символов и прочего мусора, КРОМЕ разделителя \x1D (ASCII 29)
                 safeVal = safeVal.replace(/[\x00-\x1C\x1E\x1F]/g, '');
-                
-                // 2. Экранируем символ каретки (^ -> ^^), чтобы криптохвосты не ломали парсер
                 safeVal = safeVal.replace(/\^/g, '^^');
-                
-                // 3. Превращаем текстовый Excel-разделитель в системную команду FNC1
                 safeVal = safeVal.replace(/_x001[dD]_/g, '^FNC1');
-                
-                // 4. Превращаем невидимый спецсимвол разделителя (если он скопирован напрямую) в FNC1
                 safeVal = safeVal.replace(/[\x1D\u001D]/g, '^FNC1');
-                
-                // 5. Обязательный стартовый FNC1 для Честного Знака в самом начале
                 bwipOpts.text = '^FNC1' + safeVal;
             } else {
                 bwipOpts.text = String(val);
@@ -409,50 +385,47 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- НОВАЯ ЛОГИКА ХРАНЕНИЯ ДАННЫХ ---
-
-    // Загрузка локальных шаблонов при старте
+    // --- АСИНХРОННОЕ ХРАНИЛИЩЕ (LOCALFORAGE) ---
     const loadLocalTpls = async () => {
-        const tpls = await localforage.getItem('templates') || {};
-        const sel = document.getElementById('tplSelector');
-        sel.innerHTML = '';
-        const defOpt = document.createElement('option');
-        defOpt.value = ''; defOpt.text = '-- Выберите --';
-        sel.appendChild(defOpt);
-        
-        Object.keys(tpls).forEach(k => { 
-            const opt = document.createElement('option');
-            opt.value = k; opt.text = k;
-            sel.appendChild(opt); 
-        });
-        
-        const lastTpl = await localforage.getItem('lastSelectedTpl');
-        if (lastTpl && tpls[lastTpl]) {
-            sel.value = lastTpl;
-            applyTpl(tpls[lastTpl], lastTpl);
+        try {
+            const tpls = await localforage.getItem('templates') || {};
+            const sel = document.getElementById('tplSelector');
+            sel.innerHTML = '';
+            const defOpt = document.createElement('option');
+            defOpt.value = ''; defOpt.text = '-- Выберите --';
+            sel.appendChild(defOpt);
+            
+            Object.keys(tpls).forEach(k => { 
+                const opt = document.createElement('option');
+                opt.value = k; opt.text = k;
+                sel.appendChild(opt); 
+            });
+            
+            const lastTpl = await localforage.getItem('lastSelectedTpl');
+            if (lastTpl && tpls[lastTpl]) {
+                sel.value = lastTpl;
+                applyTpl(tpls[lastTpl], lastTpl);
+            }
+        } catch (err) {
+            console.error("Ошибка загрузки шаблонов:", err);
         }
     };
+    loadLocalTpls();
 
-    // Сохранение шаблона
     document.getElementById('saveLocalBtn').addEventListener('click', async () => {
         const name = document.getElementById('tplName').value.trim();
         if (!name) return showAlert("Введите имя шаблона!");
         
         const tpls = await localforage.getItem('templates') || {};
-        tpls[name] = { 
-            width: document.getElementById('labelWidth').value, 
-            height: document.getElementById('labelHeight').value, 
-            objects: getTplJSON() 
-        };
+        tpls[name] = { width: document.getElementById('labelWidth').value, height: document.getElementById('labelHeight').value, objects: getTplJSON() };
         
-        await localforage.setItem('templates', tpls);
+        await localforage.setItem('templates', tpls); 
         await localforage.setItem('lastSelectedTpl', name);
         
-        await loadLocalTpls(); 
+        loadLocalTpls(); 
         showAlert("Шаблон сохранен в память устройства!");
     });
 
-    // Удаление шаблона
     document.getElementById('delLocalBtn').addEventListener('click', async () => {
         const name = document.getElementById('tplSelector').value;
         if (!name) return showAlert("Выберите шаблон для удаления!");
@@ -461,34 +434,71 @@ window.addEventListener('DOMContentLoaded', () => {
             const tpls = await localforage.getItem('templates') || {};
             delete tpls[name];
             
-            await localforage.setItem('templates', tpls);
+            await localforage.setItem('templates', tpls); 
             await localforage.removeItem('lastSelectedTpl');
             
             document.getElementById('tplName').value = ''; 
             canvas.clear(); canvas.backgroundColor = '#ffffff'; canvas.renderAll();
             
-            await loadLocalTpls(); 
-            showAlert("Удалено!");
+            loadLocalTpls(); 
+            showAlert("Шаблон удален!");
         }
     });
 
-    // Смена шаблона в списке
     document.getElementById('tplSelector').addEventListener('change', async (e) => { 
         await localforage.setItem('lastSelectedTpl', e.target.value); 
-        await loadLocalTpls(); 
+        loadLocalTpls(); 
     });
 
-    // Инициализация при загрузке
-    loadLocalTpls();
-
-    document.getElementById('newLocalBtn').addEventListener('click', () => { 
-        document.getElementById('tplName').value = ''; document.getElementById('tplSelector').value = ''; 
-        localStorage.removeItem('lastSelectedTpl'); canvas.clear(); canvas.backgroundColor = '#ffffff'; canvas.renderAll(); 
+    document.getElementById('newLocalBtn').addEventListener('click', async () => { 
+        document.getElementById('tplName').value = ''; 
+        document.getElementById('tplSelector').value = ''; 
+        await localforage.removeItem('lastSelectedTpl'); 
+        canvas.clear(); canvas.backgroundColor = '#ffffff'; canvas.renderAll(); 
     });
 
-    document.getElementById('exportTplBtn').addEventListener('click', async () => { const name = document.getElementById('tplName').value || 'Шаблон'; const { filePath } = await ipcRenderer.invoke('save-template-dialog', name); if (filePath) { fs.writeFileSync(filePath, JSON.stringify({ name: name, width: document.getElementById('labelWidth').value, height: document.getElementById('labelHeight').value, objects: getTplJSON() })); showAlert("Успешно экспортирован!"); } });
-    document.getElementById('importTplBtn').addEventListener('click', async () => { const { filePaths } = await ipcRenderer.invoke('load-template-dialog'); if (filePaths.length > 0) { const data = JSON.parse(fs.readFileSync(filePaths[0], 'utf8')); applyTpl(data, data.name || 'Импорт'); showAlert("Загружен!"); } });
+    // --- ВЕБ-ЭКСПОРТ И ИМПОРТ (БЕЗ ELECTRON DIALOGS) ---
+    document.getElementById('exportTplBtn').addEventListener('click', () => { 
+        const name = document.getElementById('tplName').value || 'Шаблон';
+        const data = JSON.stringify({ 
+            name: name, 
+            width: document.getElementById('labelWidth').value, 
+            height: document.getElementById('labelHeight').value, 
+            objects: getTplJSON() 
+        });
+        const blob = new Blob([data], {type: "application/json"});
+        const url  = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; 
+        a.download = `${name}.json`;
+        document.body.appendChild(a); 
+        a.click(); 
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
 
+    const fileImportInput = document.createElement('input');
+    fileImportInput.type = 'file'; 
+    fileImportInput.accept = '.json';
+    fileImportInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (f) => {
+            try {
+                const data = JSON.parse(f.target.result);
+                applyTpl(data, data.name || 'Импорт');
+                showAlert("Шаблон успешно загружен!");
+            } catch (err) {
+                showAlert("Ошибка чтения файла шаблона!");
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = '';
+    });
+    document.getElementById('importTplBtn').addEventListener('click', () => fileImportInput.click());
+
+    // --- РАБОТА С GOOGLE SHEETS ---
     document.getElementById('fetchSheetsBtn').addEventListener('click', async () => {
         const url = document.getElementById('sheetUrl').value;
         if (!url) return showAlert("Вставьте ссылку на таблицу!");
@@ -503,16 +513,23 @@ window.addEventListener('DOMContentLoaded', () => {
             const selector = document.getElementById('sheetSelector');
             selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
             document.getElementById('sheetSelectionDiv').style.display = 'block';
-        } catch (e) { showAlert("Ошибка загрузки! Проверьте доступ."); } 
-        finally { document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; }
+        } catch (e) { 
+            showAlert("Ошибка загрузки! Убедитесь, что доступ к таблице открыт по ссылке (Читатель)."); 
+        } finally { 
+            document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
+        }
     });
 
     document.getElementById('loadFieldsBtn').addEventListener('click', () => {
         const sheetName = document.getElementById('sheetSelector').value;
         const json = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetName], { header: 1 });
-        if (json.length > 0) { document.getElementById('dataFieldsList').innerText = "Поля:\n" + json[0].join(', '); showAlert("Поля загружены!"); }
+        if (json.length > 0) { 
+            document.getElementById('dataFieldsList').innerText = "Поля:\n" + json[0].join(', '); 
+            showAlert("Поля загружены!"); 
+        }
     });
 
+    // --- ВЕБ-ПЕЧАТЬ ПАКЕТОМ В НОВОЙ ВКЛАДКЕ ---
     document.getElementById('printBtn').addEventListener('click', async () => {
         const hasDynamic = canvas.getObjects().some(obj => obj.isDynamic);
         const url = document.getElementById('sheetUrl').value;
@@ -548,50 +565,99 @@ window.addEventListener('DOMContentLoaded', () => {
                 svgs.push(svg);
             }
             
-            ipcRenderer.send('print-to-pdf', { svgs, widthMm: wMm, heightMm: hMm });
+            // В вебе генерируем HTML документ с SVG и отправляем на печать браузером
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html><head><title>Печать этикеток</title>
+                <style>
+                    @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
+                    body { margin: 0; padding: 0; display: flex; flex-direction: column; background: white; }
+                    .page { 
+                        width: ${wMm}mm; 
+                        height: ${hMm}mm; 
+                        page-break-after: always; 
+                        display: flex; 
+                        justify-content: center; 
+                        align-items: center; 
+                        overflow: hidden; 
+                    }
+                    /* Прячем лишние элементы при реальной печати */
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    }
+                </style>
+                </head><body>
+                ${svgs.map(s => `<div class="page">${s}</div>`).join('')}
+                </body></html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            
+            // Даем браузеру 500мс на отрисовку SVG, прежде чем вызывать системное окно печати
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
         };
 
-        if (!hasDynamic) return processPrint([{}]);
+        if (!hasDynamic) {
+            return processPrint([{}]);
+        }
+        
         if (!url) return showAlert("Для пакетной печати загрузите таблицу слева!");
 
+        // Имитация модального окна в вебе (если вы хотите упростить, можно использовать confirm)
         const modal = document.getElementById('printModal');
-        modal.style.display = 'flex';
-        
-        document.getElementById('cancelPrintBtn').style.display = 'inline-block';
-        
-        if (!globalWorkbook) {
-            document.getElementById('printModalControls').style.display = 'none'; 
-            document.getElementById('confirmPrintBtn').style.display = 'none';
-            try {
-                const match = url.match(/\/d\/(.+?)\//);
-                const resp = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
-                globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
-                const selHtml = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
-                document.getElementById('sheetSelector').innerHTML = selHtml;
-                document.getElementById('sheetSelectionDiv').style.display = 'block';
-            } catch (e) { modal.style.display = 'none'; return showAlert("Ошибка скачивания таблицы."); }
-        }
-
-        const sheetSel = document.getElementById('printSheetSelector');
-        sheetSel.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
-        if (document.getElementById('sheetSelector').value) sheetSel.value = document.getElementById('sheetSelector').value;
-        
-        document.getElementById('printModalStatus').innerText = "Успешно! Выберите лист для печати:";
-        document.getElementById('printModalControls').style.display = 'block';
-        document.getElementById('confirmPrintBtn').style.display = 'block';
-
-        const oldConfirm = document.getElementById('confirmPrintBtn');
-        const newConfirm = oldConfirm.cloneNode(true);
-        oldConfirm.parentNode.replaceChild(newConfirm, oldConfirm);
-
-        newConfirm.addEventListener('click', () => {
-            document.getElementById('printModal').style.display = 'none';
-            const rows = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetSel.value]);
-            if (rows.length === 0) return showAlert("Выбранный лист пуст!");
+        if (modal) {
+            modal.style.display = 'flex';
+            document.getElementById('cancelPrintBtn').style.display = 'inline-block';
             
-            processPrint(rows);
-        });
-    });
+            if (!globalWorkbook) {
+                document.getElementById('printModalControls').style.display = 'none'; 
+                document.getElementById('confirmPrintBtn').style.display = 'none';
+                try {
+                    const match = url.match(/\/d\/(.+?)\//);
+                    const resp = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
+                    globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
+                    const selHtml = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+                    document.getElementById('sheetSelector').innerHTML = selHtml;
+                    document.getElementById('sheetSelectionDiv').style.display = 'block';
+                } catch (e) { 
+                    modal.style.display = 'none'; 
+                    return showAlert("Ошибка скачивания таблицы."); 
+                }
+            }
 
-    document.getElementById('cancelPrintBtn').addEventListener('click', () => document.getElementById('printModal').style.display = 'none');
+            const sheetSel = document.getElementById('printSheetSelector');
+            sheetSel.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+            if (document.getElementById('sheetSelector').value) sheetSel.value = document.getElementById('sheetSelector').value;
+            
+            document.getElementById('printModalStatus').innerText = "Успешно! Выберите лист для печати:";
+            document.getElementById('printModalControls').style.display = 'block';
+            document.getElementById('confirmPrintBtn').style.display = 'block';
+
+            const oldConfirm = document.getElementById('confirmPrintBtn');
+            const newConfirm = oldConfirm.cloneNode(true);
+            oldConfirm.parentNode.replaceChild(newConfirm, oldConfirm);
+
+            newConfirm.addEventListener('click', () => {
+                document.getElementById('printModal').style.display = 'none';
+                const rows = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetSel.value]);
+                if (rows.length === 0) return showAlert("Выбранный лист пуст!");
+                
+                processPrint(rows);
+            });
+            
+            document.getElementById('cancelPrintBtn').addEventListener('click', () => {
+                document.getElementById('printModal').style.display = 'none';
+            });
+        } else {
+            // Фолбэк, если модального окна нет в HTML
+            if (!globalWorkbook) return showAlert("Сначала загрузите таблицу!");
+            const sheetName = document.getElementById('sheetSelector').value;
+            const rows = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetName]);
+            if (rows.length === 0) return showAlert("Выбранный лист пуст!");
+            processPrint(rows);
+        }
+    });
 });

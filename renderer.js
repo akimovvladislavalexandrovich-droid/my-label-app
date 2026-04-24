@@ -508,20 +508,21 @@ window.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
         try {
-            // ИСПОЛЬЗУЕМ CORS-ПРОКСИ ДЛЯ ВЕБ-ВЕРСИИ
+            // ИСПОЛЬЗУЕМ БОЛЕЕ НАДЕЖНЫЙ ПРОКСИ (allorigins)
             const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
-            const proxyUrl = `https://corsproxy.io/?${targetUrl}`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
             
             const resp = await fetch(proxyUrl);
-            if (!resp.ok) throw new Error("Сетевая ошибка");
+            if (!resp.ok) throw new Error(`Ошибка сервера прокси: ${resp.status}`);
             
             globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
             const selector = document.getElementById('sheetSelector');
             selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
             document.getElementById('sheetSelectionDiv').style.display = 'block';
+            
         } catch (e) { 
-            console.error("Sheet Fetch Error:", e);
-            showAlert("Ошибка загрузки! Убедитесь, что доступ открыт, или попробуйте позже."); 
+            console.error("Детали ошибки загрузки:", e);
+            showAlert(`Не удалось скачать таблицу.\nЕсли доступ к Google Sheet точно открыт (Читатель), возможно, прокси-сервер перегружен.`); 
         } finally { 
             document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
         }

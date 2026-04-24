@@ -499,6 +499,33 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('importTplBtn').addEventListener('click', () => fileImportInput.click());
 
     // --- РАБОТА С GOOGLE SHEETS ---
+    // document.getElementById('fetchSheetsBtn').addEventListener('click', async () => {
+    //     const url = document.getElementById('sheetUrl').value;
+    //     if (!url) return showAlert("Вставьте ссылку на таблицу!");
+    //     localStorage.setItem('sheetUrl', url); 
+    //     const match = url.match(/\/d\/(.+?)\//);
+    //     if (!match) return showAlert("Неверный формат ссылки.");
+        
+    //     document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
+    //     try {
+    //         // ИСПОЛЬЗУЕМ ПРОКСИ CODETABS
+    //         const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
+    //         const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${targetUrl}`;
+            
+    //         const resp = await fetch(proxyUrl);
+    //         if (!resp.ok) throw new Error("Сетевая ошибка");
+            
+    //         globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
+    //         const selector = document.getElementById('sheetSelector');
+    //         selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
+    //         document.getElementById('sheetSelectionDiv').style.display = 'block';
+    //     } catch (e) { 
+    //         console.error("Sheet Fetch Error:", e);
+    //         showAlert("Ошибка загрузки! Бесплатный прокси-сервер перегружен. Попробуйте еще раз через минуту."); 
+    //     } finally { 
+    //         document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
+    //     }
+    // });
     document.getElementById('fetchSheetsBtn').addEventListener('click', async () => {
         const url = document.getElementById('sheetUrl').value;
         if (!url) return showAlert("Вставьте ссылку на таблицу!");
@@ -508,25 +535,25 @@ window.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
         try {
-            // ИСПОЛЬЗУЕМ ПРОКСИ CODETABS
+            // ИСПОЛЬЗУЕМ БОЛЕЕ НАДЕЖНЫЙ ПРОКСИ (allorigins)
             const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
-            const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${targetUrl}`;
+            const proxyUrl = `https://api.allorigins.win/raw?url=${targetUrl}`;
             
             const resp = await fetch(proxyUrl);
-            if (!resp.ok) throw new Error("Сетевая ошибка");
+            if (!resp.ok) throw new Error(`Ошибка сервера прокси: ${resp.status}`);
             
             globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
             const selector = document.getElementById('sheetSelector');
             selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
             document.getElementById('sheetSelectionDiv').style.display = 'block';
+            
         } catch (e) { 
-            console.error("Sheet Fetch Error:", e);
-            showAlert("Ошибка загрузки! Бесплатный прокси-сервер перегружен. Попробуйте еще раз через минуту."); 
+            console.error("Детали ошибки загрузки:", e);
+            showAlert(`Не удалось скачать таблицу.\nЕсли доступ к Google Sheet точно открыт (Читатель), возможно, прокси-сервер перегружен.`); 
         } finally { 
             document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
         }
     });
-
     document.getElementById('loadFieldsBtn').addEventListener('click', () => {
         const sheetName = document.getElementById('sheetSelector').value;
         const json = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetName], { header: 1 });

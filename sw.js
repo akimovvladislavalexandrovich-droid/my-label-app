@@ -4,8 +4,8 @@ const ASSETS_TO_CACHE = [
   './index.html',
   './renderer.js',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './build/icon-192.png',
+  './build/icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js'
 ];
 

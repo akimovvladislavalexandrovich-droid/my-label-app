@@ -508,13 +508,20 @@ window.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
         try {
-            const resp = await fetch(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
+            // ИСПОЛЬЗУЕМ CORS-ПРОКСИ ДЛЯ ВЕБ-ВЕРСИИ
+            const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
+            const proxyUrl = `https://corsproxy.io/?${targetUrl}`;
+            
+            const resp = await fetch(proxyUrl);
+            if (!resp.ok) throw new Error("Сетевая ошибка");
+            
             globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
             const selector = document.getElementById('sheetSelector');
             selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
             document.getElementById('sheetSelectionDiv').style.display = 'block';
         } catch (e) { 
-            showAlert("Ошибка загрузки! Убедитесь, что доступ к таблице открыт по ссылке (Читатель)."); 
+            console.error("Sheet Fetch Error:", e);
+            showAlert("Ошибка загрузки! Убедитесь, что доступ открыт, или попробуйте позже."); 
         } finally { 
             document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
         }

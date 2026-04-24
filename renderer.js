@@ -536,9 +536,9 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
         try {
             // ИСПОЛЬЗУЕМ БОЛЕЕ НАДЕЖНЫЙ ПРОКСИ (allorigins)
-            const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
+            const targetUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
             const proxyUrl = `https://proxy.quack-label.space/${targetUrl}`;
-            
+    
             const resp = await fetch(proxyUrl);
             if (!resp.ok) throw new Error(`Ошибка сервера прокси: ${resp.status}`);
             

@@ -1,0 +1,21 @@
+{
+  "name": "Quack-quack Label",
+  "short_name": "QuackLabel",
+  "description": "Сохранение в PDF этикеток c Barcode (Code-128) и КИЗ (DataMatrix) с по редактируемым шаблонам из google sheet в роли БД (настройка доступа "Все у кого есть ссылка" - "Только чтение")",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "build/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "build/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

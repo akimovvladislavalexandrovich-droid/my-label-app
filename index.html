@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline' 'unsafe-eval';">
     <title>Quack-quack (Label)</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').then(reg => {
+            console.log('Service Worker зарегистрирован!', reg);
+          }).catch(err => {
+            console.log('Ошибка регистрации Service Worker:', err);
+          });
+        });
+      }
+    </script>
     <style>
         body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; background: #f0f0f0; overflow: hidden; }
         .toolbar { background: #1c5c94; color: white; padding: 10px; display: flex; gap: 15px; align-items: center; justify-content: space-between; }
@@ -208,6 +223,7 @@
     <script src="./libs/fabric.min.js"></script>
     <script src="./libs/bwip-js.min.js"></script>
     <script>if (window.module) module = window.module;</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

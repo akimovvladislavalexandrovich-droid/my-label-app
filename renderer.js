@@ -409,8 +409,11 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    const loadLocalTpls = () => {
-        const tpls = JSON.parse(localStorage.getItem('templates') || '{}');
+    // --- НОВАЯ ЛОГИКА ХРАНЕНИЯ ДАННЫХ ---
+
+    // Загрузка локальных шаблонов при старте
+    const loadLocalTpls = async () => {
+        const tpls = await localforage.getItem('templates') || {};
         const sel = document.getElementById('tplSelector');
         sel.innerHTML = '';
         const defOpt = document.createElement('option');
@@ -423,41 +426,60 @@ window.addEventListener('DOMContentLoaded', () => {
             sel.appendChild(opt); 
         });
         
-        const lastTpl = localStorage.getItem('lastSelectedTpl');
+        const lastTpl = await localforage.getItem('lastSelectedTpl');
         if (lastTpl && tpls[lastTpl]) {
             sel.value = lastTpl;
             applyTpl(tpls[lastTpl], lastTpl);
         }
     };
-    loadLocalTpls();
 
-    document.getElementById('saveLocalBtn').addEventListener('click', () => {
+    // Сохранение шаблона
+    document.getElementById('saveLocalBtn').addEventListener('click', async () => {
         const name = document.getElementById('tplName').value.trim();
         if (!name) return showAlert("Введите имя шаблона!");
-        const tpls = JSON.parse(localStorage.getItem('templates') || '{}');
-        tpls[name] = { width: document.getElementById('labelWidth').value, height: document.getElementById('labelHeight').value, objects: getTplJSON() };
-        localStorage.setItem('templates', JSON.stringify(tpls)); localStorage.setItem('lastSelectedTpl', name);
-        loadLocalTpls(); showAlert("Шаблон сохранен!");
+        
+        const tpls = await localforage.getItem('templates') || {};
+        tpls[name] = { 
+            width: document.getElementById('labelWidth').value, 
+            height: document.getElementById('labelHeight').value, 
+            objects: getTplJSON() 
+        };
+        
+        await localforage.setItem('templates', tpls);
+        await localforage.setItem('lastSelectedTpl', name);
+        
+        await loadLocalTpls(); 
+        showAlert("Шаблон сохранен в память устройства!");
     });
 
-    document.getElementById('delLocalBtn').addEventListener('click', () => {
+    // Удаление шаблона
+    document.getElementById('delLocalBtn').addEventListener('click', async () => {
         const name = document.getElementById('tplSelector').value;
-        if (!name) return showAlert("Выберите шаблон из списка для удаления!");
-        if (confirm(`Вы действительно хотите удалить шаблон "${name}"?`)) {
-            const tpls = JSON.parse(localStorage.getItem('templates') || '{}');
+        if (!name) return showAlert("Выберите шаблон для удаления!");
+        
+        if (confirm(`Удалить шаблон "${name}"?`)) {
+            const tpls = await localforage.getItem('templates') || {};
             delete tpls[name];
-            localStorage.setItem('templates', JSON.stringify(tpls)); 
-            localStorage.removeItem('lastSelectedTpl');
+            
+            await localforage.setItem('templates', tpls);
+            await localforage.removeItem('lastSelectedTpl');
+            
             document.getElementById('tplName').value = ''; 
             canvas.clear(); canvas.backgroundColor = '#ffffff'; canvas.renderAll();
-            loadLocalTpls(); showAlert("Шаблон удален!");
+            
+            await loadLocalTpls(); 
+            showAlert("Удалено!");
         }
     });
 
-    document.getElementById('tplSelector').addEventListener('change', (e) => { 
-        localStorage.setItem('lastSelectedTpl', e.target.value); 
-        loadLocalTpls(); 
+    // Смена шаблона в списке
+    document.getElementById('tplSelector').addEventListener('change', async (e) => { 
+        await localforage.setItem('lastSelectedTpl', e.target.value); 
+        await loadLocalTpls(); 
     });
+
+    // Инициализация при загрузке
+    loadLocalTpls();
 
     document.getElementById('newLocalBtn').addEventListener('click', () => { 
         document.getElementById('tplName').value = ''; document.getElementById('tplSelector').value = ''; 

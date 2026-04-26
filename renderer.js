@@ -64,11 +64,15 @@ window.addEventListener('DOMContentLoaded', () => {
         const maxLines = obj.maxLines || 1; 
         while (currentFontSize > 6) {
             let isOverflowing = false;
+            
             const actualTextH = originalCalcTextHeight.call(obj);
+            
             if (obj.customHeight && actualTextH > obj.customHeight) isOverflowing = true;
             if (obj.boxWidth && obj.width > obj.boxWidth) isOverflowing = true;
             if (obj.textLines && obj.textLines.length > maxLines) isOverflowing = true;
+            
             if (!isOverflowing) break;
+            
             currentFontSize -= 1;
             obj.set('fontSize', currentFontSize);
             canvas.renderAll();
@@ -556,14 +560,9 @@ window.addEventListener('DOMContentLoaded', () => {
             }
             
             const iframe = document.createElement('iframe');
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0px';
-            iframe.style.bottom = '0px';
-            iframe.style.width = '100px';
-            iframe.style.height = '100px';
-            iframe.style.opacity = '0';
-            iframe.style.pointerEvents = 'none';
-            iframe.style.zIndex = '-9999';
+            iframe.style.position = 'absolute';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
             iframe.style.border = 'none';
             document.body.appendChild(iframe);
 
@@ -593,14 +592,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 </body></html>
             `);
             doc.close();
-
+            
             setTimeout(() => {
                 iframe.contentWindow.focus();
-                iframe.contentWindow.onafterprint = () => {
-                    if (document.body.contains(iframe)) document.body.removeChild(iframe);
-                };
                 iframe.contentWindow.print();
-            }, 300);
+                setTimeout(() => {
+                    if (document.body.contains(iframe)) document.body.removeChild(iframe);
+                }, 2000);
+            }, 500);
         };
 
         if (!hasDynamic) {

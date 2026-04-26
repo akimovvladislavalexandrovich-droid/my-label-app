@@ -1,6 +1,3 @@
-// В веб-версии (PWA) мы не используем require('electron') и fs.
-// Библиотеки (fabric, bwipjs, XLSX, localforage) загружаются глобально из index.html
-
 window.addEventListener('DOMContentLoaded', () => {
     fabric.Text.prototype.textBaseline = 'alphabetic';
     fabric.Textbox.prototype.textBaseline = 'alphabetic';
@@ -40,7 +37,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const canvas = new fabric.Canvas('labelCanvas', { backgroundColor: '#ffffff', preserveObjectStacking: true });
     
-    // В вебе используем стандартный alert вместо диалогов Electron
     const showAlert = (msg) => alert(msg);
 
     const updateCanvasSize = () => {
@@ -68,22 +64,17 @@ window.addEventListener('DOMContentLoaded', () => {
         const maxLines = obj.maxLines || 1; 
         while (currentFontSize > 6) {
             let isOverflowing = false;
-            
             const actualTextH = originalCalcTextHeight.call(obj);
-            
             if (obj.customHeight && actualTextH > obj.customHeight) isOverflowing = true;
             if (obj.boxWidth && obj.width > obj.boxWidth) isOverflowing = true;
             if (obj.textLines && obj.textLines.length > maxLines) isOverflowing = true;
-            
             if (!isOverflowing) break;
-            
             currentFontSize -= 1;
             obj.set('fontSize', currentFontSize);
             canvas.renderAll();
         }
     };
 
-    // БЕЗОШИБОЧНАЯ ГЕНЕРАЦИЯ ДЛЯ ЧЕСТНОГО ЗНАКА
     const updateCode = (obj, callback) => {
         let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
         try {
@@ -128,7 +119,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (callback) callback();
             });
         } catch(e) { 
-            console.error("Ошибка генерации штрихкода:", e, "Данные:", val);
             const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(errorSvg);
             obj.setSrc(dataUrl, () => {
@@ -153,7 +143,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 autoFitText(this);
             });
         } else if (obj.customType === 'svg') {
-            // Для SVG оставляем дефолтное
         } else {
             obj.on('scaling', function() {
                 this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
@@ -385,7 +374,6 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- АСИНХРОННОЕ ХРАНИЛИЩЕ (LOCALFORAGE) ---
     const loadLocalTpls = async () => {
         try {
             const tpls = await localforage.getItem('templates') || {};
@@ -407,7 +395,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 applyTpl(tpls[lastTpl], lastTpl);
             }
         } catch (err) {
-            console.error("Ошибка загрузки шаблонов:", err);
         }
     };
     loadLocalTpls();
@@ -457,7 +444,6 @@ window.addEventListener('DOMContentLoaded', () => {
         canvas.clear(); canvas.backgroundColor = '#ffffff'; canvas.renderAll(); 
     });
 
-    // --- ВЕБ-ЭКСПОРТ И ИМПОРТ (БЕЗ ELECTRON DIALOGS) ---
     document.getElementById('exportTplBtn').addEventListener('click', () => { 
         const name = document.getElementById('tplName').value || 'Шаблон';
         const data = JSON.stringify({ 
@@ -498,34 +484,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('importTplBtn').addEventListener('click', () => fileImportInput.click());
 
-    // --- РАБОТА С GOOGLE SHEETS ---
-    // document.getElementById('fetchSheetsBtn').addEventListener('click', async () => {
-    //     const url = document.getElementById('sheetUrl').value;
-    //     if (!url) return showAlert("Вставьте ссылку на таблицу!");
-    //     localStorage.setItem('sheetUrl', url); 
-    //     const match = url.match(/\/d\/(.+?)\//);
-    //     if (!match) return showAlert("Неверный формат ссылки.");
-        
-    //     document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
-    //     try {
-    //         // ИСПОЛЬЗУЕМ ПРОКСИ CODETABS
-    //         const targetUrl = encodeURIComponent(`https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`);
-    //         const proxyUrl = `https://api.codetabs.com/v1/proxy/?quest=${targetUrl}`;
-            
-    //         const resp = await fetch(proxyUrl);
-    //         if (!resp.ok) throw new Error("Сетевая ошибка");
-            
-    //         globalWorkbook = XLSX.read(await resp.arrayBuffer(), { type: 'array' });
-    //         const selector = document.getElementById('sheetSelector');
-    //         selector.innerHTML = globalWorkbook.SheetNames.map(n => `<option value="${n}">${n}</option>`).join('');
-    //         document.getElementById('sheetSelectionDiv').style.display = 'block';
-    //     } catch (e) { 
-    //         console.error("Sheet Fetch Error:", e);
-    //         showAlert("Ошибка загрузки! Бесплатный прокси-сервер перегружен. Попробуйте еще раз через минуту."); 
-    //     } finally { 
-    //         document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
-    //     }
-    // });
     document.getElementById('fetchSheetsBtn').addEventListener('click', async () => {
         const url = document.getElementById('sheetUrl').value;
         if (!url) return showAlert("Вставьте ссылку на таблицу!");
@@ -535,7 +493,6 @@ window.addEventListener('DOMContentLoaded', () => {
         
         document.getElementById('fetchSheetsBtn').innerText = "Загрузка...";
         try {
-            // ИСПОЛЬЗУЕМ БОЛЕЕ НАДЕЖНЫЙ ПРОКСИ (allorigins)
             const targetUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=xlsx`;
             const proxyUrl = `https://proxy.quack-label.space:8443/${targetUrl}`;
     
@@ -548,12 +505,12 @@ window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sheetSelectionDiv').style.display = 'block';
             
         } catch (e) { 
-            console.error("Детали ошибки загрузки:", e);
             showAlert(`Не удалось скачать таблицу.\nЕсли доступ к Google Sheet точно открыт (Читатель), возможно, прокси-сервер перегружен.`); 
         } finally { 
             document.getElementById('fetchSheetsBtn').innerText = "Найти листы"; 
         }
     });
+
     document.getElementById('loadFieldsBtn').addEventListener('click', () => {
         const sheetName = document.getElementById('sheetSelector').value;
         const json = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetName], { header: 1 });
@@ -563,7 +520,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- ВЕБ-ПЕЧАТЬ ПАКЕТОМ В НОВОЙ ВКЛАДКЕ ---
     document.getElementById('printBtn').addEventListener('click', async () => {
         const hasDynamic = canvas.getObjects().some(obj => obj.isDynamic);
         const url = document.getElementById('sheetUrl').value;
@@ -599,9 +555,21 @@ window.addEventListener('DOMContentLoaded', () => {
                 svgs.push(svg);
             }
             
-            // В вебе генерируем HTML документ с SVG и отправляем на печать браузером
-            const printWindow = window.open('', '_blank');
-            printWindow.document.write(`
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.bottom = '0px';
+            iframe.style.right = '0px';
+            iframe.style.width = '100px';
+            iframe.style.height = '100px';
+            iframe.style.opacity = '0';
+            iframe.style.pointerEvents = 'none';
+            iframe.style.zIndex = '-9999';
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+
+            const doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write(`
                 <!DOCTYPE html>
                 <html><head><title>Печать этикеток</title>
                 <style>
@@ -616,22 +584,31 @@ window.addEventListener('DOMContentLoaded', () => {
                         align-items: center; 
                         overflow: hidden; 
                     }
-                    /* Прячем лишние элементы при реальной печати */
                     @media print {
                         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     }
                 </style>
                 </head><body>
                 ${svgs.map(s => `<div class="page">${s}</div>`).join('')}
+                <script>
+                    setTimeout(function() {
+                        window.focus();
+                        window.print();
+                    }, 300);
+                    window.onafterprint = function() {
+                        window.parent.postMessage('close_quack_print', '*');
+                    };
+                </script>
                 </body></html>
             `);
-            printWindow.document.close();
-            printWindow.focus();
-            
-            // Даем браузеру 500мс на отрисовку SVG, прежде чем вызывать системное окно печати
-            setTimeout(() => {
-                printWindow.print();
-            }, 500);
+            doc.close();
+
+            window.addEventListener('message', function printListener(e) {
+                if (e.data === 'close_quack_print') {
+                    if (document.body.contains(iframe)) document.body.removeChild(iframe);
+                    window.removeEventListener('message', printListener);
+                }
+            });
         };
 
         if (!hasDynamic) {
@@ -640,7 +617,6 @@ window.addEventListener('DOMContentLoaded', () => {
         
         if (!url) return showAlert("Для пакетной печати загрузите таблицу слева!");
 
-        // Имитация модального окна в вебе (если вы хотите упростить, можно использовать confirm)
         const modal = document.getElementById('printModal');
         if (modal) {
             modal.style.display = 'flex';
@@ -686,7 +662,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('printModal').style.display = 'none';
             });
         } else {
-            // Фолбэк, если модального окна нет в HTML
             if (!globalWorkbook) return showAlert("Сначала загрузите таблицу!");
             const sheetName = document.getElementById('sheetSelector').value;
             const rows = XLSX.utils.sheet_to_json(globalWorkbook.Sheets[sheetName]);

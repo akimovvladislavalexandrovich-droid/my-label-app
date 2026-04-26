@@ -557,8 +557,8 @@ window.addEventListener('DOMContentLoaded', () => {
             
             const iframe = document.createElement('iframe');
             iframe.style.position = 'fixed';
-            iframe.style.bottom = '0px';
             iframe.style.right = '0px';
+            iframe.style.bottom = '0px';
             iframe.style.width = '100px';
             iframe.style.height = '100px';
             iframe.style.opacity = '0';

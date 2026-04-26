@@ -590,25 +590,17 @@ window.addEventListener('DOMContentLoaded', () => {
                 </style>
                 </head><body>
                 ${svgs.map(s => `<div class="page">${s}</div>`).join('')}
-                <script>
-                    setTimeout(function() {
-                        window.focus();
-                        window.print();
-                    }, 300);
-                    window.onafterprint = function() {
-                        window.parent.postMessage('close_quack_print', '*');
-                    };
-                </script>
                 </body></html>
             `);
             doc.close();
 
-            window.addEventListener('message', function printListener(e) {
-                if (e.data === 'close_quack_print') {
+            setTimeout(() => {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.onafterprint = () => {
                     if (document.body.contains(iframe)) document.body.removeChild(iframe);
-                    window.removeEventListener('message', printListener);
-                }
-            });
+                };
+                iframe.contentWindow.print();
+            }, 300);
         };
 
         if (!hasDynamic) {

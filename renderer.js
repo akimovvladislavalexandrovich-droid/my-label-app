@@ -151,7 +151,10 @@ window.addEventListener('DOMContentLoaded', () => {
         } else if (obj.customType === 'svg') {
         } else {
             obj.on('scaling', function() {
-                this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+                const step = 0.25; // Или 0.125, идеальное попадание в аппаратную сетку 203 DPI
+                this.currentScaleLevel = Math.max(1, Math.round((this.scaleX * (this.currentScaleLevel || 3)) / step) * step);
+                // this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+                // this.currentScaleLevel = Math.max(1, this.scaleX * (this.currentScaleLevel || 3));
                 if (this.scaleY !== 1 && this.customType === 'barcode') {
                     this.barcodeHeight = Math.max(5, (this.barcodeHeight || 15) * this.scaleY);
                 }
@@ -576,8 +579,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 <style>
                     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; display: flex; flex-direction: column; background: white; }
-                    svg { shape-rendering: crispEdges; }
-                    svg image { image-rendering: pixelated; }
+                    // svg { shape-rendering: crispEdges; }
+                    // svg image { image-rendering: pixelated; }
                     .page { 
                         width: ${wMm}mm; 
                         height: ${hMm}mm; 

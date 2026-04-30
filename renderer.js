@@ -113,7 +113,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
             const match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
             if (match) {
-                svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" `);
+                svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" preserveAspectRatio="none" `);
+                // svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" `);
             }
 
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
@@ -576,6 +577,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; display: flex; flex-direction: column; background: white; }
                     svg { shape-rendering: crispEdges; }
+                    svg image { image-rendering: pixelated; }
                     .page { 
                         width: ${wMm}mm; 
                         height: ${hMm}mm; 

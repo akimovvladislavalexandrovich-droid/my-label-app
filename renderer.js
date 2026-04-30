@@ -28,7 +28,8 @@ window.addEventListener('DOMContentLoaded', () => {
         return svgStr;
     };
     
-    const pxPerMm = 3.78 * 2;
+    // const pxPerMm = 3.78 * 2;
+    const pxPerMm = 8;
     let globalWorkbook = null;
     const KIZ_PLACEHOLDER = "01046106385308152159/V?,ORZe.n! 91EE11 92IxY135Gwv5yE0RUyVffncQwx2uVRm2eoz1Ng2DNSn3A=";
 
@@ -574,6 +575,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 <style>
                     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; display: flex; flex-direction: column; background: white; }
+                    svg { shape-rendering: crispEdges; }
                     .page { 
                         width: ${wMm}mm; 
                         height: ${hMm}mm; 

@@ -49,6 +49,7 @@ ipcMain.on('print-to-pdf', async (event, { svgs, widthMm, heightMm }) => {
                 <style>
                     @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; background: white; }
+                    svg { shape-rendering: crispEdges; }
                 </style>
             </head>
             <body>${htmlPages}</body>

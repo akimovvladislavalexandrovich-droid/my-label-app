@@ -329,7 +329,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 left: 50, top: 50, 
                 // Стартуем с комфортного размера (например, минимум + 2 шага)
                 currentScaleLevel: MIN_SCALE + 2, 
-                barcodeHeight: 15, dataValue: '12345678', 
+                barcodeHeight: 15, dataValue: '2037243335666', 
                 customType: 'barcode', showText: true, baseFontSize: 10, textOffset: 1, textPos: 'center', fontFamily: 'Arial', fontWeight: 'bold' 
             });
             attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);

@@ -38,8 +38,20 @@ window.addEventListener('DOMContentLoaded', () => {
     const savedUrl = localStorage.getItem('sheetUrl');
     if (savedUrl) document.getElementById('sheetUrl').value = savedUrl;
 
+    // const canvas = new fabric.Canvas('labelCanvas', { backgroundColor: '#ffffff', preserveObjectStacking: true });
     const canvas = new fabric.Canvas('labelCanvas', { backgroundColor: '#ffffff', preserveObjectStacking: true });
     
+    // ДОБАВИТЬ ЭТО: Убиваем дробные координаты при любом движении
+    canvas.on('object:moving', (e) => {
+        if (e.target) {
+            e.target.set({ left: Math.round(e.target.left), top: Math.round(e.target.top) });
+        }
+    });
+    canvas.on('object:scaling', (e) => {
+        if (e.target) {
+            e.target.set({ left: Math.round(e.target.left), top: Math.round(e.target.top) });
+        }
+    });
     const showAlert = (msg) => alert(msg);
 
     const updateCanvasSize = () => {
@@ -87,9 +99,24 @@ window.addEventListener('DOMContentLoaded', () => {
             // Масштаб ВСЕГДА строго целое число (1, 2, 3...)
             let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
 
+            // let bwipOpts = {
+            //     bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
+            //     scale: scaleLevel,       
+            //     includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
+            //     textsize: obj.baseFontSize || 10,
+            //     textxalign: obj.textPos || 'center',
+            //     textyoffset: parseFloat(obj.textOffset) || 1,
+            //     barcolor: '000000', 
+            //     backgroundcolor: 'ffffff',
+            //     fontfamily: obj.fontFamily || 'Arial',
+            //     fontweight: obj.fontWeight || 'normal'
+            // };
             let bwipOpts = {
                 bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
                 scale: scaleLevel,       
+                // ДОБАВЛЯЕМ ЖЕСТКИЙ НУЛЕВОЙ ОТСТУП
+                paddingwidth: 0, 
+                paddingheight: 0,
                 includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
                 textsize: obj.baseFontSize || 10,
                 textxalign: obj.textPos || 'center',
@@ -138,10 +165,27 @@ window.addEventListener('DOMContentLoaded', () => {
                 svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" `);
             }
 
+            // const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+            // obj.setSrc(dataUrl, () => {
+            //     if (obj._element) obj.set({ width: obj._element.width, height: obj._element.height });
+            //     obj.set({ scaleX: 1, scaleY: 1 });
+            //     canvas.renderAll();
+            //     if (callback) callback();
+            // });
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
             obj.setSrc(dataUrl, () => {
-                if (obj._element) obj.set({ width: obj._element.width, height: obj._element.height });
-                obj.set({ scaleX: 1, scaleY: 1 });
+                if (obj._element) {
+                    obj.set({ width: obj._element.width, height: obj._element.height });
+                }
+                // ФИНАЛЬНОЕ УНИЧТОЖЕНИЕ ДРОБЕЙ И ОБВОДОК
+                obj.set({ 
+                    scaleX: 1, 
+                    scaleY: 1,
+                    left: Math.round(obj.left),
+                    top: Math.round(obj.top),
+                    strokeWidth: 0, 
+                    stroke: null
+                });
                 canvas.renderAll();
                 if (callback) callback();
             });
@@ -647,8 +691,18 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (updatePromises.length > 0) await Promise.all(updatePromises);
                 canvas.renderAll();
                 
-                let svg = canvas.toSVG();
-                svg = svg.replace(/^<svg [^>]*width="[^"]*"[^>]*height="[^"]*"/i, match => match.replace(/width="[^"]*"/, 'width="100%"').replace(/height="[^"]*"/, 'height="100%"'));
+                // let svg = canvas.toSVG();
+                // svg = svg.replace(/^<svg [^>]*width="[^"]*"[^>]*height="[^"]*"/i, match => match.replace(/width="[^"]*"/, 'width="100%"').replace(/height="[^"]*"/, 'height="100%"'));
+                let svg = canvas.toSVG({ suppressPreamble: true });
+                
+                // Вписываем точные физические размеры этикетки
+                svg = svg.replace(/^<svg [^>]*width="[^"]*"[^>]*height="[^"]*"/i, match => 
+                    match.replace(/width="[^"]*"/, `width="${wMm}mm"`)
+                         .replace(/height="[^"]*"/, `height="${hMm}mm"`)
+                );
+                
+                // Вшиваем запрет на адаптивное растягивание и сглаживание во весь холст
+                svg = svg.replace(/<svg /, '<svg preserveAspectRatio="none" shape-rendering="crispEdges" ');
                 svgs.push(svg);
             }
             

@@ -102,15 +102,14 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     };
     const updateCode = (obj, callback) => {
-        let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '2037243335666');
+        let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
         try {
-            // let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
-            let scaleLevel = Math.max(MIN_SCALE, Math.round(obj.currentScaleLevel || MIN_SCALE));
+            // Масштаб для генерации. Берем из объекта.
+            let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
 
             let bwipOpts = {
                 bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
                 scale: scaleLevel,       
-                // ДОБАВЛЯЕМ ЖЕСТКИЙ НУЛЕВОЙ ОТСТУП
                 paddingwidth: 0, 
                 paddingheight: 0,
                 includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
@@ -136,112 +135,27 @@ window.addEventListener('DOMContentLoaded', () => {
                 bwipOpts.height = obj.barcodeHeight || 15;
             }
 
+            // Генерируем ЧИСТЫЙ математический SVG без всяких CSS-хаков
             let svgStr = bwipjs.toSVG(bwipOpts);
-            // ==========================================================
-            // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ V2 (ФИЗИЧЕСКИЙ) 🔥
-            // ==========================================================
-            // Считаем реальную физическую толщину 1 модуля штрихкода в миллиметрах
-            let lineThicknessMm = scaleLevel / pxPerMm; 
-            let strokeFatness = 0;
-            
-            // Если линия тоньше 0.35 мм (идеальная толщина для плотного черного цвета)
-            if (lineThicknessMm < 0.35) {
-                let missingMm = 0.35 - lineThicknessMm;
-                
-                // Переводим недостающие миллиметры в пиксели
-                // Умножаем на 0.5, потому что CSS stroke растет в обе стороны от центра линии
-                strokeFatness = missingMm * pxPerMm * 0.5; 
-                
-                // Для DataMatrix ужирняем намного слабее, иначе квадраты превратятся в кашу
-                if (obj.customType === 'datamatrix') {
-                    strokeFatness = strokeFatness; 
-                }
-            }
 
-            if (strokeFatness > 0) {
-                // Вшиваем stroke-linejoin: miter, чтобы углы оставались острыми
-                const styleTag = `<style>rect, path { stroke: #000000 !important; stroke-width: ${strokeFatness}px !important; stroke-linejoin: miter; }</style>`;
-                svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
-            }
-            // // ==========================================================
-            // // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ (Bar Width Adjustment) 🔥
-            // // ==========================================================
-            // let strokeFatness = 0;
-            
-            // // Если масштаб меньше 6, начинаем ужирнять. Чем меньше код, тем больше жира.
-            // // При 720 DPI масштаб 1-4 дает слишком тонкие физические линии.
-            // if (scaleLevel < 6) {
-            //     strokeFatness = (6 - scaleLevel) * 0.4; // Коэффициент жирности (подбирается опытным путем)
-                
-            //     // Если это DataMatrix, ужирняем меньше, иначе сольются квадратики
-            //     if (obj.customType === 'datamatrix') {
-            //         strokeFatness = strokeFatness; 
-            //     }
-            // }
-
-            // // Внедряем CSS обводку прямо внутрь сгенерированного SVG.
-            // // stroke расширяет черную линию во все стороны, съедая белый пробел.
-            // if (strokeFatness > 0) {
-            //     const styleTag = `<style>rect, path { stroke: #000000; stroke-width: ${strokeFatness}px; }</style>`;
-            //     svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
-            // }
-
-            // АВТОПОДГОНКА (решает проблему сканирования длинных слов, например из 13 символов)
+            // Возвращаем preserveAspectRatio="none", чтобы штрихкод тянулся за рамкой,
+            // и убираем crispEdges из самого SVG, чтобы PDF-движок не "съедал" тонкие линии
             let match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
             if (match) {
-                let actualWidth = parseFloat(match[1]);
-                let maxAllowedWidth = canvas.width - obj.left - 10; 
-
-                // Если штрихкод шире этикетки, понижаем масштаб на 1 целый шаг
-                while (actualWidth > maxAllowedWidth && scaleLevel > MIN_SCALE) {
-                    scaleLevel -= 1;
-                    bwipOpts.scale = scaleLevel;
-                    svgStr = bwipjs.toSVG(bwipOpts);
-                    match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
-                    actualWidth = match ? parseFloat(match[1]) : actualWidth;
-                }
-                // while (actualWidth > maxAllowedWidth && scaleLevel > 1) {
-                //     scaleLevel -= 1;
-                //     bwipOpts.scale = scaleLevel;
-                //     svgStr = bwipjs.toSVG(bwipOpts);
-                //     match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
-                //     actualWidth = match ? parseFloat(match[1]) : actualWidth;
-                // }
-                obj.currentScaleLevel = scaleLevel; // Запоминаем подобранный безопасный масштаб
+                svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" preserveAspectRatio="none" `);
             }
 
-            // ВАЖНО: Вшиваем crispEdges и УБИРАЕМ preserveAspectRatio="none"
-            match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
-            if (match) {
-                svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" `);
-            }
-
-            // const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-            // obj.setSrc(dataUrl, () => {
-            //     if (obj._element) obj.set({ width: obj._element.width, height: obj._element.height });
-            //     obj.set({ scaleX: 1, scaleY: 1 });
-            //     canvas.renderAll();
-            //     if (callback) callback();
-            // });
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
             obj.setSrc(dataUrl, () => {
                 if (obj._element) {
                     obj.set({ width: obj._element.width, height: obj._element.height });
                 }
-                // ФИНАЛЬНОЕ УНИЧТОЖЕНИЕ ДРОБЕЙ И ОБВОДОК
-                obj.set({ 
-                    scaleX: 1, 
-                    scaleY: 1,
-                    left: Math.round(obj.left),
-                    top: Math.round(obj.top),
-                    strokeWidth: 0, 
-                    stroke: null
-                });
+                obj.set({ scaleX: 1, scaleY: 1 });
                 canvas.renderAll();
                 if (callback) callback();
             });
         } catch(e) { 
-            const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
+            const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(errorSvg);
             obj.setSrc(dataUrl, () => {
                 if (obj._element) obj.set({ width: 50, height: 50 });
@@ -250,6 +164,155 @@ window.addEventListener('DOMContentLoaded', () => {
             });
         }
     };
+    // const updateCode = (obj, callback) => {
+    //     let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '2037243335666');
+    //     try {
+    //         // let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
+    //         let scaleLevel = Math.max(MIN_SCALE, Math.round(obj.currentScaleLevel || MIN_SCALE));
+
+    //         let bwipOpts = {
+    //             bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
+    //             scale: scaleLevel,       
+    //             // ДОБАВЛЯЕМ ЖЕСТКИЙ НУЛЕВОЙ ОТСТУП
+    //             paddingwidth: 0, 
+    //             paddingheight: 0,
+    //             includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
+    //             textsize: obj.baseFontSize || 10,
+    //             textxalign: obj.textPos || 'center',
+    //             textyoffset: parseFloat(obj.textOffset) || 1,
+    //             barcolor: '000000', 
+    //             backgroundcolor: 'ffffff',
+    //             fontfamily: obj.fontFamily || 'Arial',
+    //             fontweight: obj.fontWeight || 'normal'
+    //         };
+
+    //         if (obj.customType === 'datamatrix') {
+    //             bwipOpts.parsefnc = true; 
+    //             let safeVal = String(val);
+    //             safeVal = safeVal.replace(/[\x00-\x1C\x1E\x1F]/g, '');
+    //             safeVal = safeVal.replace(/\^/g, '^^');
+    //             safeVal = safeVal.replace(/_x001[dD]_/g, '^FNC1');
+    //             safeVal = safeVal.replace(/[\x1D\u001D]/g, '^FNC1');
+    //             bwipOpts.text = '^FNC1' + safeVal;
+    //         } else {
+    //             bwipOpts.text = String(val);
+    //             bwipOpts.height = obj.barcodeHeight || 15;
+    //         }
+
+    //         let svgStr = bwipjs.toSVG(bwipOpts);
+    //         // ==========================================================
+    //         // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ V2 (ФИЗИЧЕСКИЙ) 🔥
+    //         // ==========================================================
+    //         // Считаем реальную физическую толщину 1 модуля штрихкода в миллиметрах
+    //         let lineThicknessMm = scaleLevel / pxPerMm; 
+    //         let strokeFatness = 0;
+            
+    //         // Если линия тоньше 0.35 мм (идеальная толщина для плотного черного цвета)
+    //         if (lineThicknessMm < 0.35) {
+    //             let missingMm = 0.35 - lineThicknessMm;
+                
+    //             // Переводим недостающие миллиметры в пиксели
+    //             // Умножаем на 0.5, потому что CSS stroke растет в обе стороны от центра линии
+    //             strokeFatness = missingMm * pxPerMm * 0.5; 
+                
+    //             // Для DataMatrix ужирняем намного слабее, иначе квадраты превратятся в кашу
+    //             if (obj.customType === 'datamatrix') {
+    //                 strokeFatness = strokeFatness; 
+    //             }
+    //         }
+
+    //         if (strokeFatness > 0) {
+    //             // Вшиваем stroke-linejoin: miter, чтобы углы оставались острыми
+    //             const styleTag = `<style>rect, path { stroke: #000000 !important; stroke-width: ${strokeFatness}px !important; stroke-linejoin: miter; }</style>`;
+    //             svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
+    //         }
+    //         // // ==========================================================
+    //         // // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ (Bar Width Adjustment) 🔥
+    //         // // ==========================================================
+    //         // let strokeFatness = 0;
+            
+    //         // // Если масштаб меньше 6, начинаем ужирнять. Чем меньше код, тем больше жира.
+    //         // // При 720 DPI масштаб 1-4 дает слишком тонкие физические линии.
+    //         // if (scaleLevel < 6) {
+    //         //     strokeFatness = (6 - scaleLevel) * 0.4; // Коэффициент жирности (подбирается опытным путем)
+                
+    //         //     // Если это DataMatrix, ужирняем меньше, иначе сольются квадратики
+    //         //     if (obj.customType === 'datamatrix') {
+    //         //         strokeFatness = strokeFatness; 
+    //         //     }
+    //         // }
+
+    //         // // Внедряем CSS обводку прямо внутрь сгенерированного SVG.
+    //         // // stroke расширяет черную линию во все стороны, съедая белый пробел.
+    //         // if (strokeFatness > 0) {
+    //         //     const styleTag = `<style>rect, path { stroke: #000000; stroke-width: ${strokeFatness}px; }</style>`;
+    //         //     svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
+    //         // }
+
+    //         // АВТОПОДГОНКА (решает проблему сканирования длинных слов, например из 13 символов)
+    //         let match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    //         if (match) {
+    //             let actualWidth = parseFloat(match[1]);
+    //             let maxAllowedWidth = canvas.width - obj.left - 10; 
+
+    //             // Если штрихкод шире этикетки, понижаем масштаб на 1 целый шаг
+    //             while (actualWidth > maxAllowedWidth && scaleLevel > MIN_SCALE) {
+    //                 scaleLevel -= 1;
+    //                 bwipOpts.scale = scaleLevel;
+    //                 svgStr = bwipjs.toSVG(bwipOpts);
+    //                 match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    //                 actualWidth = match ? parseFloat(match[1]) : actualWidth;
+    //             }
+    //             // while (actualWidth > maxAllowedWidth && scaleLevel > 1) {
+    //             //     scaleLevel -= 1;
+    //             //     bwipOpts.scale = scaleLevel;
+    //             //     svgStr = bwipjs.toSVG(bwipOpts);
+    //             //     match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    //             //     actualWidth = match ? parseFloat(match[1]) : actualWidth;
+    //             // }
+    //             obj.currentScaleLevel = scaleLevel; // Запоминаем подобранный безопасный масштаб
+    //         }
+
+    //         // ВАЖНО: Вшиваем crispEdges и УБИРАЕМ preserveAspectRatio="none"
+    //         match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    //         if (match) {
+    //             svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" `);
+    //         }
+
+    //         // const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+    //         // obj.setSrc(dataUrl, () => {
+    //         //     if (obj._element) obj.set({ width: obj._element.width, height: obj._element.height });
+    //         //     obj.set({ scaleX: 1, scaleY: 1 });
+    //         //     canvas.renderAll();
+    //         //     if (callback) callback();
+    //         // });
+    //         const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+    //         obj.setSrc(dataUrl, () => {
+    //             if (obj._element) {
+    //                 obj.set({ width: obj._element.width, height: obj._element.height });
+    //             }
+    //             // ФИНАЛЬНОЕ УНИЧТОЖЕНИЕ ДРОБЕЙ И ОБВОДОК
+    //             obj.set({ 
+    //                 scaleX: 1, 
+    //                 scaleY: 1,
+    //                 left: Math.round(obj.left),
+    //                 top: Math.round(obj.top),
+    //                 strokeWidth: 0, 
+    //                 stroke: null
+    //             });
+    //             canvas.renderAll();
+    //             if (callback) callback();
+    //         });
+    //     } catch(e) { 
+    //         const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
+    //         const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(errorSvg);
+    //         obj.setSrc(dataUrl, () => {
+    //             if (obj._element) obj.set({ width: 50, height: 50 });
+    //             canvas.renderAll();
+    //             if (callback) callback();
+    //         });
+    //     }
+    // };
     // const updateCode = (obj, callback) => {
     //     let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
     //     try {

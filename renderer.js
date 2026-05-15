@@ -30,7 +30,7 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // const pxPerMm = 3.78 * 2;
     // const pxPerMm = 8;
-    const DPI = 203;
+    const DPI = 720;
     const pxPerMm = DPI / 25.4; // 7.99212598...
     let globalWorkbook = null;
     const KIZ_PLACEHOLDER = "01046106385308152159/V?,ORZe.n! 91EE11 92IxY135Gwv5yE0RUyVffncQwx2uVRm2eoz1Ng2DNSn3A=";
@@ -94,7 +94,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     };
     const updateCode = (obj, callback) => {
-        let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
+        let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '2037243335666');
         try {
             // Масштаб ВСЕГДА строго целое число (1, 2, 3...)
             let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
@@ -310,7 +310,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
         fabric.Image.fromURL(blankSvg, (img) => {
             img.set({ 
-                left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '2007040215546', 
+                left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '2037243335666', 
                 customType: 'barcode', showText: true, baseFontSize: 10, textOffset: 1, textPos: 'center', fontFamily: 'Arial', fontWeight: 'bold' 
             });
             attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);

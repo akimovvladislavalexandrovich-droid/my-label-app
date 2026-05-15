@@ -30,8 +30,16 @@ window.addEventListener('DOMContentLoaded', () => {
     
     // const pxPerMm = 3.78 * 2;
     // const pxPerMm = 8;
-    const DPI = 720;
-    const pxPerMm = DPI / 25.4; // 7.99212598...
+    // Замените ваши константы на этот блок:
+    const DPI = 720; 
+    const pxPerMm = DPI / 25.4;
+
+    // Физический минимум узкой линии штрихкода (в миллиметрах)
+    const MIN_MODULE_WIDTH_MM = 0.17; 
+    // Математический расчет минимального Scale (в пикселях)
+    const MIN_SCALE = Math.max(1, Math.ceil(MIN_MODULE_WIDTH_MM * pxPerMm));
+    // const DPI = 720;
+    // const pxPerMm = DPI / 25.4; // 7.99212598...
     let globalWorkbook = null;
     const KIZ_PLACEHOLDER = "01046106385308152159/V?,ORZe.n! 91EE11 92IxY135Gwv5yE0RUyVffncQwx2uVRm2eoz1Ng2DNSn3A=";
 
@@ -96,21 +104,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const updateCode = (obj, callback) => {
         let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '2037243335666');
         try {
-            // Масштаб ВСЕГДА строго целое число (1, 2, 3...)
-            let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
+            // let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
+            let scaleLevel = Math.max(MIN_SCALE, Math.round(obj.currentScaleLevel || MIN_SCALE));
 
-            // let bwipOpts = {
-            //     bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
-            //     scale: scaleLevel,       
-            //     includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
-            //     textsize: obj.baseFontSize || 10,
-            //     textxalign: obj.textPos || 'center',
-            //     textyoffset: parseFloat(obj.textOffset) || 1,
-            //     barcolor: '000000', 
-            //     backgroundcolor: 'ffffff',
-            //     fontfamily: obj.fontFamily || 'Arial',
-            //     fontweight: obj.fontWeight || 'normal'
-            // };
             let bwipOpts = {
                 bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
                 scale: scaleLevel,       
@@ -149,13 +145,20 @@ window.addEventListener('DOMContentLoaded', () => {
                 let maxAllowedWidth = canvas.width - obj.left - 10; 
 
                 // Если штрихкод шире этикетки, понижаем масштаб на 1 целый шаг
-                while (actualWidth > maxAllowedWidth && scaleLevel > 1) {
+                while (actualWidth > maxAllowedWidth && scaleLevel > MIN_SCALE) {
                     scaleLevel -= 1;
                     bwipOpts.scale = scaleLevel;
                     svgStr = bwipjs.toSVG(bwipOpts);
                     match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
                     actualWidth = match ? parseFloat(match[1]) : actualWidth;
                 }
+                // while (actualWidth > maxAllowedWidth && scaleLevel > 1) {
+                //     scaleLevel -= 1;
+                //     bwipOpts.scale = scaleLevel;
+                //     svgStr = bwipjs.toSVG(bwipOpts);
+                //     match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+                //     actualWidth = match ? parseFloat(match[1]) : actualWidth;
+                // }
                 obj.currentScaleLevel = scaleLevel; // Запоминаем подобранный безопасный масштаб
             }
 
@@ -270,8 +273,8 @@ window.addEventListener('DOMContentLoaded', () => {
         } else if (obj.customType === 'svg') {
         } else {
             obj.on('scaling', function() {
-                // ИСПРАВЛЕНИЕ: Масштаб только целыми числами (1, 2, 3...)
-                this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+                // Блокируем сжатие ниже MIN_SCALE
+                this.currentScaleLevel = Math.max(MIN_SCALE, Math.round(this.scaleX * (this.currentScaleLevel || MIN_SCALE)));
                 
                 if (this.scaleY !== 1 && this.customType === 'barcode') {
                     this.barcodeHeight = Math.max(5, (this.barcodeHeight || 15) * this.scaleY);
@@ -280,6 +283,19 @@ window.addEventListener('DOMContentLoaded', () => {
                 updateCode(this);
             });
         }
+        // } else if (obj.customType === 'svg') {
+        // } else {
+        //     obj.on('scaling', function() {
+        //         // ИСПРАВЛЕНИЕ: Масштаб только целыми числами (1, 2, 3...)
+        //         this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+                
+        //         if (this.scaleY !== 1 && this.customType === 'barcode') {
+        //             this.barcodeHeight = Math.max(5, (this.barcodeHeight || 15) * this.scaleY);
+        //         }
+        //         this.set({ scaleX: 1, scaleY: 1 });
+        //         updateCode(this);
+        //     });
+        // }
         // } else if (obj.customType === 'svg') {
         // } else {
         //     obj.on('scaling', function() {
@@ -310,7 +326,10 @@ window.addEventListener('DOMContentLoaded', () => {
         const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
         fabric.Image.fromURL(blankSvg, (img) => {
             img.set({ 
-                left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '2037243335666', 
+                left: 50, top: 50, 
+                // Стартуем с комфортного размера (например, минимум + 2 шага)
+                currentScaleLevel: MIN_SCALE + 2, 
+                barcodeHeight: 15, dataValue: '12345678', 
                 customType: 'barcode', showText: true, baseFontSize: 10, textOffset: 1, textPos: 'center', fontFamily: 'Arial', fontWeight: 'bold' 
             });
             attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);
@@ -321,11 +340,35 @@ window.addEventListener('DOMContentLoaded', () => {
         const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
         fabric.Image.fromURL(blankSvg, (img) => {
             img.set({ 
-                left: 50, top: 50, currentScaleLevel: 3, dataValue: KIZ_PLACEHOLDER, customType: 'datamatrix'
+                left: 50, top: 50, 
+                // Для DataMatrix тоже задаем умный старт
+                currentScaleLevel: MIN_SCALE + 2, 
+                dataValue: KIZ_PLACEHOLDER, customType: 'datamatrix'
             });
             attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);
         });
     });
+
+    // document.getElementById('addBarcodeBtn').addEventListener('click', () => {
+    //     const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
+    //     fabric.Image.fromURL(blankSvg, (img) => {
+    //         img.set({ 
+    //             left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '2037243335666', 
+    //             customType: 'barcode', showText: true, baseFontSize: 10, textOffset: 1, textPos: 'center', fontFamily: 'Arial', fontWeight: 'bold' 
+    //         });
+    //         attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);
+    //     });
+    // });
+
+    // document.getElementById('addDataMatrixBtn').addEventListener('click', () => {
+    //     const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
+    //     fabric.Image.fromURL(blankSvg, (img) => {
+    //         img.set({ 
+    //             left: 50, top: 50, currentScaleLevel: 3, dataValue: KIZ_PLACEHOLDER, customType: 'datamatrix'
+    //         });
+    //         attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);
+    //     });
+    // });
 
     document.getElementById('addSvgBtn').addEventListener('click', () => document.getElementById('svgFileInput').click());
     document.getElementById('svgFileInput').addEventListener('change', (e) => {

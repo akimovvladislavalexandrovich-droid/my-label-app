@@ -49,13 +49,39 @@ ipcMain.on('print-to-pdf', async (event, { svgs, widthMm, heightMm }) => {
                 <style>
                     @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; background: white; }
-                    // svg { shape-rendering: crispEdges; }
-                    // svg image { image-rendering: pixelated; }
+                    
+                    /* ПРИНУДИТЕЛЬНОЕ отключение сглаживания вектора при рендеринге в PDF */
+                    svg, svg * { 
+                        shape-rendering: crispEdges !important; 
+                    }
+                    img, canvas, svg image { 
+                        image-rendering: pixelated !important; 
+                    }
                 </style>
             </head>
             <body>${htmlPages}</body>
             </html>
         `;
+        // const htmlPages = svgs.map(svg => `
+        //     <div style="page-break-after: always; width: ${widthMm}mm; height: ${heightMm}mm; margin: 0; padding: 0; overflow: hidden; display: flex; justify-content: center; align-items: center;">
+        //         ${svg}
+        //     </div>
+        // `).join('');
+        
+        // const html = `
+        //     <!DOCTYPE html>
+        //     <html>
+        //     <head>
+        //         <style>
+        //             @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
+        //             body { margin: 0; padding: 0; background: white; }
+        //             // svg { shape-rendering: crispEdges; }
+        //             // svg image { image-rendering: pixelated; }
+        //         </style>
+        //     </head>
+        //     <body>${htmlPages}</body>
+        //     </html>
+        // `;
 
         tempHtmlPath = path.join(app.getPath('temp'), `print_label_${Date.now()}.html`);
         fs.writeFileSync(tempHtmlPath, html, 'utf-8');

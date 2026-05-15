@@ -138,27 +138,53 @@ window.addEventListener('DOMContentLoaded', () => {
 
             let svgStr = bwipjs.toSVG(bwipOpts);
             // ==========================================================
-            // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ (Bar Width Adjustment) 🔥
+            // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ V2 (ФИЗИЧЕСКИЙ) 🔥
             // ==========================================================
+            // Считаем реальную физическую толщину 1 модуля штрихкода в миллиметрах
+            let lineThicknessMm = scaleLevel / pxPerMm; 
             let strokeFatness = 0;
             
-            // Если масштаб меньше 6, начинаем ужирнять. Чем меньше код, тем больше жира.
-            // При 720 DPI масштаб 1-4 дает слишком тонкие физические линии.
-            if (scaleLevel < 6) {
-                strokeFatness = (6 - scaleLevel) * 0.4; // Коэффициент жирности (подбирается опытным путем)
+            // Если линия тоньше 0.35 мм (идеальная толщина для плотного черного цвета)
+            if (lineThicknessMm < 0.35) {
+                let missingMm = 0.35 - lineThicknessMm;
                 
-                // Если это DataMatrix, ужирняем меньше, иначе сольются квадратики
+                // Переводим недостающие миллиметры в пиксели
+                // Умножаем на 0.5, потому что CSS stroke растет в обе стороны от центра линии
+                strokeFatness = missingMm * pxPerMm * 0.5; 
+                
+                // Для DataMatrix ужирняем намного слабее, иначе квадраты превратятся в кашу
                 if (obj.customType === 'datamatrix') {
                     strokeFatness = strokeFatness; 
                 }
             }
 
-            // Внедряем CSS обводку прямо внутрь сгенерированного SVG.
-            // stroke расширяет черную линию во все стороны, съедая белый пробел.
             if (strokeFatness > 0) {
-                const styleTag = `<style>rect, path { stroke: #000000; stroke-width: ${strokeFatness}px; }</style>`;
+                // Вшиваем stroke-linejoin: miter, чтобы углы оставались острыми
+                const styleTag = `<style>rect, path { stroke: #000000 !important; stroke-width: ${strokeFatness}px !important; stroke-linejoin: miter; }</style>`;
                 svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
             }
+            // // ==========================================================
+            // // 🔥 УМНЫЙ УЖИРНИТЕЛЬ ЛИНИЙ (Bar Width Adjustment) 🔥
+            // // ==========================================================
+            // let strokeFatness = 0;
+            
+            // // Если масштаб меньше 6, начинаем ужирнять. Чем меньше код, тем больше жира.
+            // // При 720 DPI масштаб 1-4 дает слишком тонкие физические линии.
+            // if (scaleLevel < 6) {
+            //     strokeFatness = (6 - scaleLevel) * 0.4; // Коэффициент жирности (подбирается опытным путем)
+                
+            //     // Если это DataMatrix, ужирняем меньше, иначе сольются квадратики
+            //     if (obj.customType === 'datamatrix') {
+            //         strokeFatness = strokeFatness; 
+            //     }
+            // }
+
+            // // Внедряем CSS обводку прямо внутрь сгенерированного SVG.
+            // // stroke расширяет черную линию во все стороны, съедая белый пробел.
+            // if (strokeFatness > 0) {
+            //     const styleTag = `<style>rect, path { stroke: #000000; stroke-width: ${strokeFatness}px; }</style>`;
+            //     svgStr = svgStr.replace(/<svg[^>]*>/, (match) => `${match}${styleTag}`);
+            // }
 
             // АВТОПОДГОНКА (решает проблему сканирования длинных слов, например из 13 символов)
             let match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);

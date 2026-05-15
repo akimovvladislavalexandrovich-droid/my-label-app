@@ -51,12 +51,12 @@ ipcMain.on('print-to-pdf', async (event, { svgs, widthMm, heightMm }) => {
                     body { margin: 0; padding: 0; background: white; }
                     
                     /* ПРИНУДИТЕЛЬНОЕ отключение сглаживания вектора при рендеринге в PDF */
-                    svg, svg * { 
-                        shape-rendering: crispEdges !important; 
-                    }
-                    img, canvas, svg image { 
-                        image-rendering: pixelated !important; 
-                    }
+                    /* svg, svg * {  */
+                    /*     shape-rendering: crispEdges !important;  */
+                    /* } */
+                    /* img, canvas, svg image {  */
+                    /*     image-rendering: pixelated !important;  */
+                    /* } */
                 </style>
             </head>
             <body>${htmlPages}</body>

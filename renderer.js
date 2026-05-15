@@ -29,7 +29,9 @@ window.addEventListener('DOMContentLoaded', () => {
     };
     
     // const pxPerMm = 3.78 * 2;
-    const pxPerMm = 8;
+    // const pxPerMm = 8;
+    const DPI = 203;
+    const pxPerMm = DPI / 25.4; // 7.99212598...
     let globalWorkbook = null;
     const KIZ_PLACEHOLDER = "01046106385308152159/V?,ORZe.n! 91EE11 92IxY135Gwv5yE0RUyVffncQwx2uVRm2eoz1Ng2DNSn3A=";
 
@@ -79,42 +81,64 @@ window.addEventListener('DOMContentLoaded', () => {
             canvas.renderAll();
         }
     };
-
     const updateCode = (obj, callback) => {
         let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
         try {
-            let bwipOpts = {
-                bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
-                scale: obj.currentScaleLevel || 3,       
-                includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
-                textsize: obj.baseFontSize || 10,
-                textxalign: obj.textPos || 'center',
-                textyoffset: parseFloat(obj.textOffset) || 1,
-                barcolor: '000000', 
-                backgroundcolor: 'ffffff',
-                fontfamily: obj.fontFamily || 'Arial',
-                fontweight: obj.fontWeight || 'normal'
+            // Вспомогательная функция для генерации опций
+            const getBwipOpts = (currentScale) => {
+                let opts = {
+                    bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
+                    scale: currentScale, // Здесь будет только целое число
+                    includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
+                    textsize: obj.baseFontSize || 10,
+                    textxalign: obj.textPos || 'center',
+                    textyoffset: parseFloat(obj.textOffset) || 1,
+                    barcolor: '000000', 
+                    backgroundcolor: 'ffffff',
+                    fontfamily: obj.fontFamily || 'Arial',
+                    fontweight: obj.fontWeight || 'normal'
+                };
+
+                if (obj.customType === 'datamatrix') {
+                    opts.parsefnc = true; 
+                    let safeVal = String(val);
+                    safeVal = safeVal.replace(/[\x00-\x1C\x1E\x1F]/g, '');
+                    safeVal = safeVal.replace(/\^/g, '^^');
+                    safeVal = safeVal.replace(/_x001[dD]_/g, '^FNC1');
+                    safeVal = safeVal.replace(/[\x1D\u001D]/g, '^FNC1');
+                    opts.text = '^FNC1' + safeVal;
+                } else {
+                    opts.text = String(val);
+                    opts.height = obj.barcodeHeight || 15;
+                }
+                return opts;
             };
 
-            if (obj.customType === 'datamatrix') {
-                bwipOpts.parsefnc = true; 
-                let safeVal = String(val);
-                safeVal = safeVal.replace(/[\x00-\x1C\x1E\x1F]/g, '');
-                safeVal = safeVal.replace(/\^/g, '^^');
-                safeVal = safeVal.replace(/_x001[dD]_/g, '^FNC1');
-                safeVal = safeVal.replace(/[\x1D\u001D]/g, '^FNC1');
-                bwipOpts.text = '^FNC1' + safeVal;
-            } else {
-                bwipOpts.text = String(val);
-                bwipOpts.height = obj.barcodeHeight || 15;
+            // Гарантируем, что масштаб - целое число
+            let scaleLevel = Math.max(1, Math.round(obj.currentScaleLevel || 3));
+            let svgStr = bwipjs.toSVG(getBwipOpts(scaleLevel));
+
+            // АВТОПОДГОНКА (решает проблему сканирования длинных слов)
+            let match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+            if (match) {
+                let actualWidth = parseFloat(match[1]);
+                // Максимальная ширина = от края до края минус небольшой отступ
+                let maxAllowedWidth = canvas.width - obj.left - 10; 
+
+                // Пока код шире доступного места и масштаб больше 1, уменьшаем масштаб на 1
+                while (actualWidth > maxAllowedWidth && scaleLevel > 1) {
+                    scaleLevel -= 1;
+                    svgStr = bwipjs.toSVG(getBwipOpts(scaleLevel));
+                    match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+                    actualWidth = match ? parseFloat(match[1]) : actualWidth;
+                }
+                obj.currentScaleLevel = scaleLevel; // Запоминаем подобранный масштаб
             }
 
-            let svgStr = bwipjs.toSVG(bwipOpts);
-
-            const match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+            // Добавляем shape-rendering для отключения векторного сглаживания
+            match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
             if (match) {
                 svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" preserveAspectRatio="none" `);
-                // svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" `);
             }
 
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
@@ -125,7 +149,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (callback) callback();
             });
         } catch(e) { 
-            const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
+            const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
             const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(errorSvg);
             obj.setSrc(dataUrl, () => {
                 if (obj._element) obj.set({ width: 50, height: 50 });
@@ -134,6 +158,60 @@ window.addEventListener('DOMContentLoaded', () => {
             });
         }
     };
+    // const updateCode = (obj, callback) => {
+    //     let val = obj.dataValue || (obj.customType === 'datamatrix' ? KIZ_PLACEHOLDER : '12345678');
+    //     try {
+    //         let bwipOpts = {
+    //             bcid: obj.customType === 'barcode' ? 'code128' : 'datamatrix',
+    //             scale: obj.currentScaleLevel || 3,       
+    //             includetext: obj.customType === 'barcode' ? (obj.showText !== false) : false,     
+    //             textsize: obj.baseFontSize || 10,
+    //             textxalign: obj.textPos || 'center',
+    //             textyoffset: parseFloat(obj.textOffset) || 1,
+    //             barcolor: '000000', 
+    //             backgroundcolor: 'ffffff',
+    //             fontfamily: obj.fontFamily || 'Arial',
+    //             fontweight: obj.fontWeight || 'normal'
+    //         };
+
+    //         if (obj.customType === 'datamatrix') {
+    //             bwipOpts.parsefnc = true; 
+    //             let safeVal = String(val);
+    //             safeVal = safeVal.replace(/[\x00-\x1C\x1E\x1F]/g, '');
+    //             safeVal = safeVal.replace(/\^/g, '^^');
+    //             safeVal = safeVal.replace(/_x001[dD]_/g, '^FNC1');
+    //             safeVal = safeVal.replace(/[\x1D\u001D]/g, '^FNC1');
+    //             bwipOpts.text = '^FNC1' + safeVal;
+    //         } else {
+    //             bwipOpts.text = String(val);
+    //             bwipOpts.height = obj.barcodeHeight || 15;
+    //         }
+
+    //         let svgStr = bwipjs.toSVG(bwipOpts);
+
+    //         const match = svgStr.match(/viewBox="0 0 (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)"/);
+    //         if (match) {
+    //             svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" shape-rendering="crispEdges" preserveAspectRatio="none" `);
+    //             // svgStr = svgStr.replace('<svg ', `<svg width="${match[1]}" height="${match[2]}" `);
+    //         }
+
+    //         const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+    //         obj.setSrc(dataUrl, () => {
+    //             if (obj._element) obj.set({ width: obj._element.width, height: obj._element.height });
+    //             obj.set({ scaleX: 1, scaleY: 1 });
+    //             canvas.renderAll();
+    //             if (callback) callback();
+    //         });
+    //     } catch(e) { 
+    //         const errorSvg = `<svg width="50" height="50" xmlns="http://www.w3.org/2000/svg"><rect width="50" height="50" fill="red"/><text x="5" y="25" fill="white" font-size="12" font-family="Arial">ERROR</text></svg>`;
+    //         const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(errorSvg);
+    //         obj.setSrc(dataUrl, () => {
+    //             if (obj._element) obj.set({ width: 50, height: 50 });
+    //             canvas.renderAll();
+    //             if (callback) callback();
+    //         });
+    //     }
+    // };
 
     const attachScaleEvent = (obj) => {
         obj.setControlVisible('mtr', false);
@@ -151,10 +229,9 @@ window.addEventListener('DOMContentLoaded', () => {
         } else if (obj.customType === 'svg') {
         } else {
             obj.on('scaling', function() {
-                const step = 1; // Или 0.125, идеальное попадание в аппаратную сетку 203 DPI
-                this.currentScaleLevel = Math.max(1, Math.round((this.scaleX * (this.currentScaleLevel || 3)) / step) * step);
-                // this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
-                // this.currentScaleLevel = Math.max(1, this.scaleX * (this.currentScaleLevel || 3));
+                // ИСПРАВЛЕНИЕ: Масштаб только целыми числами (1, 2, 3...)
+                this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+                
                 if (this.scaleY !== 1 && this.customType === 'barcode') {
                     this.barcodeHeight = Math.max(5, (this.barcodeHeight || 15) * this.scaleY);
                 }
@@ -162,6 +239,20 @@ window.addEventListener('DOMContentLoaded', () => {
                 updateCode(this);
             });
         }
+        // } else if (obj.customType === 'svg') {
+        // } else {
+        //     obj.on('scaling', function() {
+        //         const step = 1; // Или 0.125, идеальное попадание в аппаратную сетку 203 DPI
+        //         this.currentScaleLevel = Math.max(1, Math.round((this.scaleX * (this.currentScaleLevel || 3)) / step) * step);
+        //         // this.currentScaleLevel = Math.max(1, Math.round(this.scaleX * (this.currentScaleLevel || 3)));
+        //         // this.currentScaleLevel = Math.max(1, this.scaleX * (this.currentScaleLevel || 3));
+        //         if (this.scaleY !== 1 && this.customType === 'barcode') {
+        //             this.barcodeHeight = Math.max(5, (this.barcodeHeight || 15) * this.scaleY);
+        //         }
+        //         this.set({ scaleX: 1, scaleY: 1 });
+        //         updateCode(this);
+        //     });
+        // }
     };
 
     document.getElementById('addTextBtn').addEventListener('click', () => {
@@ -579,8 +670,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 <style>
                     @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
                     body { margin: 0; padding: 0; display: flex; flex-direction: column; background: white; }
-                    // svg { shape-rendering: crispEdges; }
-                    // svg image { image-rendering: pixelated; }
+                    svg { shape-rendering: crispEdges; }
+                    svg image { image-rendering: pixelated; }
                     .page { 
                         width: ${wMm}mm; 
                         height: ${hMm}mm; 

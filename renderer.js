@@ -266,7 +266,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const blankSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg width="10" height="10"></svg>');
         fabric.Image.fromURL(blankSvg, (img) => {
             img.set({ 
-                left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '12345678', 
+                left: 50, top: 50, currentScaleLevel: 3, barcodeHeight: 15, dataValue: '2007040215546', 
                 customType: 'barcode', showText: true, baseFontSize: 10, textOffset: 1, textPos: 'center', fontFamily: 'Arial', fontWeight: 'bold' 
             });
             attachScaleEvent(img); canvas.add(img).setActiveObject(img); updateCode(img);
